@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 HTML 报告生成模块
-包含生成 HTML 性能测试报告的函数
+包含生成 HTML SSE的函数
 
 Author: 7DGroup
 """
@@ -31,7 +31,7 @@ def generate_html_report(results_list: List[Dict], shared_stats: Optional[Dict[s
                         output_file: str = "test_report.html", host: str = "", port: int = 0,
                         thread_count: int = 1, duration: int = 0, model_name: Optional[str] = None):
     """
-    生成 HTML 性能测试报告
+    生成 HTML SSE
 
     Args:
         results_list: 测试结果列表
@@ -396,7 +396,7 @@ def generate_html_report(results_list: List[Dict], shared_stats: Optional[Dict[s
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSE 性能测试报告 | 7DGroup</title>
+    <title> 7DGroup SSE 性能测试报告 | 7DGroup</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
@@ -778,7 +778,7 @@ def generate_html_report(results_list: List[Dict], shared_stats: Optional[Dict[s
     <div class="container">
         <div class="header">
             <div class="header-content">
-                <h1>SSE 性能测试报告</h1>
+                <h1>7DGroup SSE 性能测试报告</h1>
                 <div class="meta">
                     <div>测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
                     <div>服务器: {host}:{port}</div>

@@ -84,6 +84,10 @@ def main():
                        help="生成 HTML 报告文件路径（例如: report.html）。如果不指定，默认输出到 report/ 目录，文件名自动带时间戳")
     parser.add_argument("--model-name", type=str, default=None,
                        help="模型名称（可选），如果提供会包含在报告文件名中")
+    parser.add_argument("--api-path", type=str, default="/v1/chat-messages",
+                       help="API 路径（默认: /v1/chat-messages）。可以指定其他API接口路径，例如: /api/v1/stream, /chat/completions 等")
+    parser.add_argument("--request-body-file", type=str, default=None,
+                       help="请求体模板文件路径（JSON 格式）。如果指定，将使用此模板构建请求体，支持变量替换：{query}, {conversation_id}, {user}, {inputs.key}, {files}")
     
     args = parser.parse_args()
     
@@ -108,12 +112,24 @@ def main():
         print(f"查询数量: {len(query_provider.queries)}")
         print()
     
+    # 加载请求体模板（如果指定）
+    request_body_template = None
+    if args.request_body_file:
+        request_body_template = SSETester.load_request_body_template(args.request_body_file)
+        if request_body_template is None:
+            print("警告: 请求体模板加载失败，将使用默认请求体格式")
+        elif not args.quiet:
+            print(f"已加载请求体模板: {args.request_body_file}")
+            print()
+    
     # 创建测试器
     tester = SSETester(
         host=args.host,
         port=args.port,
         api_key=args.api_key,
-        timeout=args.timeout
+        timeout=args.timeout,
+        api_path=args.api_path,
+        request_body_template=request_body_template
     )
     
     # 是否开启汇总线程（单线程也开启，避免单线程输出）

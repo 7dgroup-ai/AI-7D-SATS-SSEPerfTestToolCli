@@ -9,6 +9,7 @@ Author: 7DGroup
 
 import json
 import time
+import os
 from typing import Dict, List, Optional, Any
 import requests
 from requests.adapters import HTTPAdapter
@@ -19,7 +20,8 @@ class SSETester:
     """SSE 流式输出测试器"""
     
     def __init__(self, host: str = "localhost", port: int = 80, 
-                 api_key: str = "", timeout: int = 60):
+                 api_key: str = "", timeout: int = 60, api_path: str = "/v1/chat-messages",
+                 request_body_template: Optional[Dict] = None):
         """
         初始化测试器
         
@@ -28,11 +30,15 @@ class SSETester:
             port: 服务器端口
             api_key: API 密钥（Bearer token）
             timeout: 请求超时时间（秒）
+            api_path: API 路径（默认: /v1/chat-messages）
+            request_body_template: 请求体模板（字典），如果为 None 则使用默认格式
         """
         self.host = host
         self.port = port
         self.api_key = api_key
         self.timeout = timeout
+        self.api_path = api_path
+        self.request_body_template = request_body_template
         self.base_url = f"http://{host}:{port}"
         
         # 创建带重试机制的 session
@@ -70,29 +76,36 @@ class SSETester:
             包含测试结果的字典
         """
         # 构建请求 URL
-        url = f"{self.base_url}/v1/chat-messages"
+        url = f"{self.base_url}{self.api_path}"
         
         # 构建请求体
-        if inputs is None:
-            inputs = {"query": query}
-        
-        if files is None:
-            files = [
-                {
-                    "type": "image",
-                    "transfer_method": "remote_url",
-                    "url": "https://example.com/logo.png"
-                }
-            ]
-        
-        request_body = {
-            "inputs": inputs,
-            "query": query,
-            "response_mode": "streaming",
-            "conversation_id": conversation_id,
-            "user": user,
-            "files": files
-        }
+        if self.request_body_template is not None:
+            # 使用自定义模板
+            request_body = self._build_request_body_from_template(
+                self.request_body_template, query, conversation_id, user, inputs, files
+            )
+        else:
+            # 使用默认格式（向后兼容）
+            if inputs is None:
+                inputs = {"query": query}
+            
+            if files is None:
+                files = [
+                    {
+                        "type": "image",
+                        "transfer_method": "remote_url",
+                        "url": "https://example.com/logo.png"
+                    }
+                ]
+            
+            request_body = {
+                "inputs": inputs,
+                "query": query,
+                "response_mode": "streaming",
+                "conversation_id": conversation_id,
+                "user": user,
+                "files": files
+            }
         
         # 选择 API key
         use_api_key = api_key_override if api_key_override else self.api_key
@@ -309,6 +322,86 @@ class SSETester:
             if verbose:
                 print(f"\n{thread_prefix}错误: {stats['error']}")
             return stats
+    
+    def _build_request_body_from_template(self, template: Dict, query: str, 
+                                         conversation_id: str, user: str,
+                                         inputs: Optional[Dict] = None,
+                                         files: Optional[List[Dict]] = None) -> Dict:
+        """
+        从模板构建请求体，支持变量替换
+        
+        Args:
+            template: 请求体模板（字典）
+            query: 查询文本
+            conversation_id: 对话ID
+            user: 用户标识
+            inputs: 输入参数字典
+            files: 文件列表
+            
+        Returns:
+            构建好的请求体字典
+        """
+        # 深拷贝模板，避免修改原始模板
+        import copy
+        request_body = copy.deepcopy(template)
+        
+        # 递归替换变量
+        def replace_variables(obj):
+            """递归替换对象中的变量占位符"""
+            if isinstance(obj, dict):
+                return {k: replace_variables(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_variables(item) for item in obj]
+            elif isinstance(obj, str):
+                # 替换变量占位符
+                result = obj
+                result = result.replace("{query}", query)
+                result = result.replace("{conversation_id}", conversation_id)
+                result = result.replace("{user}", user)
+                if inputs:
+                    # 支持 {inputs.key} 格式
+                    for key, value in inputs.items():
+                        result = result.replace(f"{{inputs.{key}}}", str(value))
+                if files:
+                    # 支持 {files} 格式（替换为整个 files 数组）
+                    if result == "{files}":
+                        return files
+                return result
+            else:
+                return obj
+        
+        return replace_variables(request_body)
+    
+    @staticmethod
+    def load_request_body_template(template_file: str) -> Optional[Dict]:
+        """
+        从 JSON 文件加载请求体模板
+        
+        Args:
+            template_file: 模板文件路径
+            
+        Returns:
+            模板字典，如果加载失败返回 None
+        """
+        try:
+            if not os.path.exists(template_file):
+                print(f"警告: 请求体模板文件 '{template_file}' 不存在")
+                return None
+            
+            with open(template_file, 'r', encoding='utf-8') as f:
+                template = json.load(f)
+            
+            if not isinstance(template, dict):
+                print(f"警告: 请求体模板文件 '{template_file}' 格式错误，必须是 JSON 对象")
+                return None
+            
+            return template
+        except json.JSONDecodeError as e:
+            print(f"警告: 请求体模板文件 '{template_file}' JSON 解析失败: {e}")
+            return None
+        except Exception as e:
+            print(f"警告: 加载请求体模板文件 '{template_file}' 失败: {e}")
+            return None
     
     def _estimate_tokens(self, text: str) -> int:
         """

@@ -72,6 +72,87 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx"
 python3 sse_perfTestTool.py --host localhost --port 80 --api-key "Bearer app-xxx"
 ```
 
+### 测试不同的 API 接口
+
+默认情况下，工具测试的是 `/v1/chat-messages` 接口。如果您想测试其他 API 接口，可以使用 `--api-path` 参数：
+
+```bash
+# 测试默认接口（/v1/chat-messages）
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx"
+
+# 测试其他接口，例如 OpenAI 风格的接口
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --api-path "/v1/chat/completions"
+
+# 测试自定义接口
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --api-path "/api/v1/stream"
+
+# 测试其他路径的接口
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --api-path "/stream/chat"
+```
+
+**注意**：
+- `--api-path` 参数指定的是 API 的路径部分，不需要包含协议、主机和端口
+- 路径应该以 `/` 开头，例如：`/v1/chat-messages`、`/api/stream` 等
+- 不同的 API 接口可能有不同的请求体格式，可以使用 `--request-body-file` 参数指定自定义请求体模板
+
+### 自定义请求体格式
+
+不同的 API 接口通常需要不同的请求体格式。工具支持通过 JSON 模板文件自定义请求体格式：
+
+```bash
+# 使用自定义请求体模板
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" \
+  --api-path "/v1/chat/completions" \
+  --request-body-file request_body_template_example.json
+```
+
+**请求体模板文件格式**：
+
+模板文件是一个 JSON 文件，支持以下变量替换：
+- `{query}` - 替换为查询文本
+- `{conversation_id}` - 替换为对话ID
+- `{user}` - 替换为用户标识
+- `{inputs.key}` - 替换为 inputs 字典中对应 key 的值（如果提供了 inputs）
+- `{files}` - 替换为文件列表（如果提供了 files）
+
+**示例模板文件**：
+
+1. **OpenAI 风格的接口** (`request_body_template_example.json`):
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "{query}"
+    }
+  ],
+  "stream": true,
+  "temperature": 0.7,
+  "user": "{user}"
+}
+```
+
+2. **默认格式** (`request_body_template_default.json`):
+```json
+{
+  "inputs": {
+    "query": "{query}"
+  },
+  "query": "{query}",
+  "response_mode": "streaming",
+  "conversation_id": "{conversation_id}",
+  "user": "{user}",
+  "files": []
+}
+```
+
+**使用说明**：
+- 如果不指定 `--request-body-file`，工具将使用默认的请求体格式（适用于 `/v1/chat-messages`）
+- 如果指定了模板文件但加载失败，工具会回退到默认格式并显示警告
+- 模板文件必须是有效的 JSON 格式
+- 变量替换是递归的，支持嵌套的 JSON 结构
+
 ### 自定义查询
 
 ```bash
@@ -221,6 +302,8 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --mod
 | `--host` | 服务器主机地址 | localhost | 否 |
 | `--port` | 服务器端口 | 80 | 否 |
 | `--api-key` | API 密钥（支持 `app-xxx` 或 `Bearer app-xxx` 格式） | - | **是**（如果未使用 `--api-key-file`） |
+| `--api-path` | API 路径（接口路径） | "/v1/chat-messages" | 否 |
+| `--request-body-file` | 请求体模板文件路径（JSON 格式），支持变量替换 | None | 否 |
 | `--query` | 查询文本 | "你是谁" | 否 |
 | `--conversation-id` | 对话ID | "" | 否 |
 | `--user` | 用户标识 | "gaolou" | 否 |
@@ -376,17 +459,6 @@ TPOT ≈ 1000 / Tokens/s
 单位：tokens/秒
 ```
 
-## 与 JMeter 脚本的对应关系
-
-| JMeter 功能 | Python 实现 |
-|------------|-------------|
-| JSR223Sampler | `test_streaming()` 方法 |
-| SSE 流式处理 | `response.iter_lines()` |
-| TTFB 计算 | `first_byte_time - request_start_time` |
-| TTFT 计算 | `first_token_time - request_start_time` |
-| TPOT 计算 | `(last_token_time - first_token_time) / (token_count - 1)` |
-| 实时输出 | `print(answer_chunk, end="", flush=True)` |
-
 ## 注意事项
 
 1. **Token 估算**: 脚本使用简单的算法估算 token 数量（中文字符数 + 英文单词数）。对于精确的 token 计数，建议使用实际的 tokenizer。
@@ -424,9 +496,15 @@ TPOT ≈ 1000 / Tokens/s
    - 如果 `report/` 目录不存在，会自动创建
    - 报告包含交互式图表，支持缩放和拖拽（所有图表同步缩放）
 
-## 故障排查
+9. **测试不同的 API 接口**:
+   - 使用 `--api-path` 参数可以指定不同的 API 接口路径
+   - 默认接口是 `/v1/chat-messages`，适用于大多数 AI 对话接口
+   - 使用 `--request-body-file` 参数可以指定自定义的请求体模板文件
+   - 请求体模板支持变量替换：`{query}`, `{conversation_id}`, `{user}`, `{inputs.key}`, `{files}`
+   - 如果不指定请求体模板，工具将使用默认的请求体格式（适用于 `/v1/chat-messages`）
+   - 项目提供了示例模板文件：`request_body_template_example.json`（OpenAI 风格）和 `request_body_template_default.json`（默认格式）
+   - 如果您的 API 响应格式不同（例如 JSON 字段名不同），可能需要修改 `tester.py` 中的响应解析逻辑（查找 `answer` 字段的部分）
 
-如果在执行脚本后，监控界面中没有看到新数据，请参考 [故障排查指南](TROUBLESHOOTING.md)。
 
 **常见问题**：
 - 监控数据可能有 1-5 分钟的延迟
