@@ -29,7 +29,6 @@
 ## 功能特性
 
 - ✅ 支持 SSE 
-- ✅ 实时输出流式内容
 - ✅ 计算关键性能指标：
   - **TTFT** (Time To First Token): 首Token时间
   - **TPOT** (Time Per Output Token): 每Token输出时间
