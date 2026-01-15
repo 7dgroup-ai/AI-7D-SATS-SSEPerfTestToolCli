@@ -3,6 +3,8 @@
 """
 参数提供器模块
 包含查询提供器和 API Key 提供器
+
+Author: 7DGroup
 """
 
 import threading

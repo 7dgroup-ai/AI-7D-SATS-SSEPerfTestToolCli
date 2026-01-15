@@ -3,6 +3,8 @@
 """
 HTML 报告生成模块
 包含生成 HTML 性能测试报告的函数
+
+Author: 7DGroup
 """
 
 import json

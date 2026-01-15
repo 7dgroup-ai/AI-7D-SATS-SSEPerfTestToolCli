@@ -5,6 +5,8 @@ SSE 流式输出性能测试脚本
 计算关键指标：TTFT (Time To First Token) 和 TPOT (Time Per Output Token)
 
 主入口文件 - 负责参数解析和测试流程控制
+
+Author: 7DGroup
 """
 
 import sys
@@ -22,7 +24,7 @@ from report_generator import generate_html_report
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="SSE 流式输出性能测试工具（支持多线程和参数化）",
+        description="SSE 流式输出性能测试工具（支持多线程和参数化）\nAuthor: 7DGroup",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

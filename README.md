@@ -1,7 +1,11 @@
-# SSE 流式输出性能测试工具
+# 7DGroup SSE 流式输出性能测试工具
 
-这是一个用于测试 SSE（Server-Sent Events）流式输出的 Python3 脚本，实现了与 `chatmessagestest.jmx` JMeter 脚本相同的功能。
+这是一个用于测试 SSE（Server-Sent Events）流式输出的 Python3 压测工具。
 
+**Author: 7DGroup**
+
+## 架构图
+![](2026-01-15-21-47-26.png)
 ## 功能特性
 
 - ✅ 支持 SSE 
@@ -17,10 +21,18 @@
   - 完整回答长度
   - 对话ID和消息ID
 - ✅ **HTML 性能报告**：
-  - 自动生成美观的 HTML 报告
-  - 包含关键指标的趋势图表（TTFT、TPOT、TTFB、吞吐量等）
-  - 详细的统计表格
+  - 自动生成美观的 HTML 报告（默认输出到 `report/` 目录，文件名带时间戳）
+  - 包含 12+ 个关键指标的趋势图表（TTFT、TPOT、TTFB、吞吐量、响应时间、Token 数量、RPS、线程数等）
+  - 系统级别性能指标趋势图（系统总吞吐量、系统平均响应时间、系统平均TPOT、总请求数）
+  - 详细的统计表格（平均值、最小值、最大值、P90、P95、P99）
+  - 交互式图表支持缩放和拖拽（所有图表同步缩放）
   - 7DGroup 品牌标识
+- ✅ **实时汇总统计**：
+  - 多线程测试时每秒自动输出实时汇总统计
+  - 显示活跃线程数、数据块数、平均响应时间、TPOT、Tokens/s、成功率等
+- ✅ **HTTP 重试机制**：
+  - 自动重试失败的请求（429、500、502、503、504 状态码）
+  - 最多重试 3 次，带指数退避策略
 
 ## 安装依赖
 
@@ -33,7 +45,11 @@ pip3 install -r requirements.txt
 ### 基本用法
 
 ```bash
+# API Key 可以是 'app-xxx' 或 'Bearer app-xxx' 格式
 python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx"
+
+# 或者使用完整 Bearer token 格式
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "Bearer app-xxx"
 ```
 
 ### 自定义查询
@@ -91,6 +107,26 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --par
 - 支持UTF-8编码的中文和英文
 - 示例文件：`queries_example.txt`
 
+### 使用 API Key 参数化文件
+
+支持从文件中读取多个 API Key，每个线程会循环使用文件中的 API Key。这对于测试不同 API Key 的性能或负载均衡场景很有用。
+
+```bash
+# 创建 API Key 文件 apiKeys.txt，每行一个 API Key
+echo -e "app-key1\napp-key2\nBearer app-key3" > apiKeys.txt
+
+# 使用 API Key 参数化文件进行测试
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key-file apiKeys.txt --threads 5
+
+# 如果 API Key 文件读取失败，会回退到 --api-key 参数指定的默认 Key
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-default" --api-key-file apiKeys.txt
+```
+
+**API Key 文件格式**：
+- 每行一个 API Key（可以是 `app-xxx` 或 `Bearer app-xxx` 格式）
+- 空行会被自动跳过
+- 支持UTF-8编码
+
 ### 静默模式（仅输出结果统计）
 
 ```bash
@@ -122,24 +158,41 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --thr
 ### 生成 HTML 性能报告
 
 ```bash
-# 基本测试并生成报告
+# 基本测试并生成报告（指定文件路径）
 python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --html-report report.html
 
-# 多线程测试并生成报告
+# 多线程测试并生成报告（指定文件路径）
 python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --threads 5 --html-report report.html
 
-# 持续测试并生成报告
+# 持续测试并生成报告（指定文件路径）
 python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --threads 10 --duration 60 --html-report report.html
+
+# 不指定 --html-report，自动生成到 report/ 目录（文件名带时间戳）
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --threads 5
+# 报告会自动保存为: report/report_20260105_123456.html
+
+# 指定模型名称（会包含在报告文件名中）
+python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --model-name "gpt-4" --threads 5
+# 报告会自动保存为: report/report_gpt-4_20260105_123456.html
 ```
 
 **HTML 报告特性**：
-- 📊 包含 6 个关键指标的趋势图表（TTFT、TPOT、TTFB、吞吐量、响应时间、Token 数量）
-- 📈 使用 Chart.js 绘制的交互式图表
-- 📋 详细的统计表格（平均值、最小值、最大值）
+- 📊 包含 12+ 个关键指标的趋势图表：
+  - 请求级别指标：TTFT、TPOT、TTFB、吞吐量、响应时间、Token 数量
+  - 系统级别指标：RPS（每秒请求数）、活跃线程数、系统总吞吐量、系统平均响应时间、系统平均TPOT、总请求数
+- 📈 使用 Chart.js 绘制的交互式图表，支持：
+  - 拖拽选择区域放大（所有图表同步缩放）
+  - 双击任意图表恢复原始视图
+  - 鼠标悬停显示详细数值
+- 📋 详细的统计表格（平均值、最小值、最大值、P90、P95、P99）
 - 🎨 现代化的 UI 设计，包含 7DGroup 品牌标识
 - 📱 响应式设计，支持不同屏幕尺寸
+- 🔄 自动生成到 `report/` 目录（如果未指定路径），文件名包含时间戳和模型名称
 
-报告文件可以在浏览器中直接打开查看。
+**报告文件位置**：
+- 如果指定 `--html-report`，报告保存到指定路径
+- 如果未指定，报告自动保存到 `report/` 目录，文件名格式：`report_[模型名_]YYYYMMDD_HHMMSS.html`
+- 报告文件可以在浏览器中直接打开查看
 
 ## 参数说明
 
@@ -147,7 +200,7 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --thr
 |------|------|--------|------|
 | `--host` | 服务器主机地址 | localhost | 否 |
 | `--port` | 服务器端口 | 80 | 否 |
-| `--api-key` | API 密钥（Bearer token） | - | **是** |
+| `--api-key` | API 密钥（支持 `app-xxx` 或 `Bearer app-xxx` 格式） | - | **是**（如果未使用 `--api-key-file`） |
 | `--query` | 查询文本 | "你是谁" | 否 |
 | `--conversation-id` | 对话ID | "" | 否 |
 | `--user` | 用户标识 | "gaolou" | 否 |
@@ -157,8 +210,9 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --thr
 | `--api-key-file` | API Key 参数化文件路径（每行一个 API Key） | None | 否 |
 | `--ramp-up` | 压测线程递增时间（秒） | 0 | 否 |
 | `--duration` / `--execution-time` | 测试执行时间长度（秒），>0 表示在指定时间窗口内循环发送请求，0 表示只执行一次 | 0 | 否 |
-| `--html-report` | 生成 HTML 报告文件路径 | None | 否 |
-| `--quiet` | 静默模式 | False | 否 |
+| `--html-report` | 生成 HTML 报告文件路径。如果不指定，默认输出到 `report/` 目录，文件名自动带时间戳 | None | 否 |
+| `--model-name` | 模型名称（可选），如果提供会包含在报告文件名中 | None | 否 |
+| `--quiet` | 静默模式，不输出详细信息和实时汇总统计 | False | 否 |
 
 ## 输出示例
 
@@ -211,45 +265,42 @@ Token数量: 45
 已加载参数化文件: queries.txt
 查询数量: 10
 
-开始多线程测试，线程数: 3
+开始测试，线程数: 3
+执行模式: 单次执行（每个线程执行一次后退出）
 ============================================================
 
-[线程1] 开始发送流式请求...
-[线程1] URL: http://localhost:80/v1/chat-messages
-[线程1] Query: 你是谁
-============================================================
-[线程2] 开始发送流式请求...
-[线程2] URL: http://localhost:80/v1/chat-messages
-[线程2] Query: 介绍一下你自己
-============================================================
-[线程3] 开始发送流式请求...
-[线程3] URL: http://localhost:80/v1/chat-messages
-[线程3] Query: 什么是人工智能
-============================================================
-
-[线程1] 响应代码: 200
-[线程1] 开始接收流式响应...
-------------------------------------------------------------
-[线程1] [关键指标] 首Token时间(TTFT): 250.15 ms
-
-----------------------------------------------------------------------------------------------------
-[线程1]         数据块      平均响应时间(ms)        TPOT(ms/token)            Tokens/s
-----------------------------------------------------------------------------------------------------
-[线程1]           105                 27.82                 12.48                 80.46
+--------------------------------------------------------------------------------------------------------------------------------------------
+时间       线程数(活跃/总)    数据块  平均响应时间(ms)    TPOT(ms/token)            Tokens/s        成功率(%)
+--------------------------------------------------------------------------------------------------------------------------------------------
+10:30:15   3/3               15      1250.50             28.45                     35.15           100.00
+10:30:16   3/3               30      1250.50             28.45                     35.15           100.00
+10:30:17   3/3               45      1250.50             28.45                     35.15           100.00
 ...
 
 ============================================================
-           多线程测试完成 - 汇总统计
+           测试完成 - 汇总统计
 ============================================================
-总线程数: 3
+配置线程数: 3
+请求次数: 3
+实际执行时间: 2.50 秒
 成功: 3
 失败: 0
+成功率: 100.00 %
 总数据块数: 75
 总Token数: 135
 总响应时间: 4487.34 ms
 平均响应时间: 1495.78 ms
+平均TTFB: 245.32 ms
+平均TTFT: 250.15 ms
 ============================================================
+
+✓ HTML 报告已生成: /path/to/report/report_20260105_103017.html
 ```
+
+**实时汇总统计说明**：
+- 多线程测试时，每秒自动输出一次实时汇总统计
+- 显示当前时间、活跃线程数、累计数据块数、平均响应时间、TPOT、Tokens/s、成功率等
+- 使用 `--quiet` 参数可以关闭实时汇总统计输出
 
 ## 关键指标说明
 
@@ -322,11 +373,13 @@ TPOT ≈ 1000 / Tokens/s
 
 2. **网络超时**: 默认超时时间为 60 秒，可以通过 `--timeout` 参数调整。
 
-3. **错误处理**: 如果请求失败，脚本会返回错误信息并退出码为 1。
+3. **错误处理**: 
+   - 如果请求失败，脚本会返回错误信息并退出码为 1
+   - 对于 429（限流）、500、502、503、504 状态码，会自动重试（最多 3 次，带指数退避）
 
 4. **多线程测试**: 
    - 使用 `--threads` 参数可以指定并发线程数
-   - 每个线程会独立执行测试，输出会带有线程ID标识（如 `[线程1]`）
+   - 多线程测试时会自动启用实时汇总统计（每秒输出一次）
    - 多线程测试完成后会显示汇总统计信息
    - 建议根据服务器性能合理设置线程数，避免过载
 
@@ -337,7 +390,19 @@ TPOT ≈ 1000 / Tokens/s
    - 如果参数化文件不存在或读取失败，会使用默认查询或 `--query` 参数指定的查询
    - 示例文件：`queries_example.txt`
 
-6. **线程安全**: 参数化查询提供器使用线程锁保证线程安全，多个线程可以安全地并发读取查询。
+6. **API Key 参数化**:
+   - API Key 文件格式：每行一个 API Key（支持 `app-xxx` 或 `Bearer app-xxx` 格式）
+   - 每个线程会循环使用文件中的 API Key
+   - 如果 API Key 文件读取失败，会回退到 `--api-key` 参数指定的默认 Key
+   - 适用于测试不同 API Key 的性能或负载均衡场景
+
+7. **线程安全**: 参数化查询提供器和 API Key 提供器都使用线程锁保证线程安全，多个线程可以安全地并发读取。
+
+8. **HTML 报告**:
+   - 如果不指定 `--html-report`，报告会自动生成到 `report/` 目录
+   - 报告文件名包含时间戳，格式：`report_[模型名_]YYYYMMDD_HHMMSS.html`
+   - 如果 `report/` 目录不存在，会自动创建
+   - 报告包含交互式图表，支持缩放和拖拽（所有图表同步缩放）
 
 ## 故障排查
 
@@ -349,6 +414,18 @@ TPOT ≈ 1000 / Tokens/s
 - 检查监控界面的时间范围设置
 - 确认响应代码为 200（请求成功）
 
+## 项目信息
+
+- **作者**: 7DGroup
+- **版本**: 1.0
+- **Python 版本**: 3.7+
+- **依赖**: requests, urllib3
+- **Git 仓库**: 本项目已初始化为 Git 仓库，可以使用 Git 进行版本控制
+
 ## 许可证
 
 本脚本遵循与原项目相同的许可证。
+
+---
+
+**Copyright © 2024 7DGroup. All rights reserved.**

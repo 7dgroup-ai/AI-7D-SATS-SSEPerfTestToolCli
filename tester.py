@@ -3,6 +3,8 @@
 """
 SSE 测试器模块
 包含 SSETester 类，用于执行 SSE 流式输出测试
+
+Author: 7DGroup
 """
 
 import json

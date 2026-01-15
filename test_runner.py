@@ -3,6 +3,8 @@
 """
 测试运行模块
 包含测试线程函数和统计汇总函数
+
+Author: 7DGroup
 """
 
 import time
