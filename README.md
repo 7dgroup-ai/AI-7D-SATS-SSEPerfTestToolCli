@@ -5,7 +5,7 @@
 这是一个专业级的 SSE（Server-Sent Events）流式输出性能测试与压测工具，由 7DGroup 团队开发，专为 AI 大模型流式响应场景设计。该工具采用 Python3 开发，提供了完整的性能测试解决方案，能够全面评估流式 AI 服务的响应速度、吞吐量、稳定性和并发处理能力。
 
 ## 架构图
-![](2026-01-15-21-47-26.png)
+![](assets/2026-01-15-21-47-26.png)
 
 **核心能力**：
 - **流式性能测试**：精确测量 SSE 流式输出的关键性能指标，包括首 Token 时间（TTFT）、每 Token 输出时间（TPOT）、首字节时间（TTFB）、吞吐量（tokens/s）等，帮助开发者深入了解 AI 服务的响应特性。
@@ -52,6 +52,42 @@
 - ✅ **HTTP 重试机制**：
   - 自动重试失败的请求（429、500、502、503、504 状态码）
   - 最多重试 3 次，带指数退避策略
+
+## 项目结构
+
+```
+AI-7D-SATS-SSEPerfTestToolCli/
+├── src/sse_perf_tool/        # 源代码目录
+│   ├── __init__.py           # 包初始化文件
+│   ├── providers.py          # 参数提供器（查询和 API Key）
+│   ├── tester.py             # SSE 测试器核心逻辑
+│   ├── test_runner.py        # 测试运行器和统计汇总
+│   └── report_generator.py    # HTML 报告生成器
+├── docs/                   # 文档目录
+│   ├── 指标计算方法.md     # 性能指标计算说明
+│   ├── 请求体模板使用指南.md # 请求体模板使用说明
+│   ├── CLAUDE.md          # Claude Code 助手指南
+│   └── AGENTS.md         # AI Agent 开发指南
+├── examples/               # 示例目录
+│   ├── request_body_template_default.json   # 默认请求体模板
+│   ├── request_body_template_example.json  # OpenAI 风格请求体模板
+│   └── queries_example.txt  # 查询示例文件
+├── assets/                 # 资源目录
+│   ├── 2026-01-15-21-47-26.png # 架构图
+│   └── 架构图.html            # 交互式架构图
+├── .github/                # GitHub 相关配置
+│   ├── workflows/          # GitHub Actions 工作流
+│   └── ISSUE_TEMPLATE/     # Issue 模板
+├── tests/                 # 测试目录（待添加）
+├── openspec/              # OpenSpec 规范
+├── .gitignore            # Git 忽略文件配置
+├── LICENSE               # 许可证
+├── README.md             # 项目说明文档
+├── CONTRIBUTING.md       # 贡献指南
+├── PROJECT_STRUCTURE.md  # 项目结构详细说明
+├── requirements.txt      # Python 依赖列表
+└── sse_perfTestTool.py  # 主入口文件
+```
 
 ## 安装依赖
 
@@ -102,7 +138,7 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --api
 # 使用自定义请求体模板
 python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" \
   --api-path "/v1/chat/completions" \
-  --request-body-file request_body_template_example.json
+  --request-body-file examples/request_body_template_example.json
 ```
 
 **请求体模板文件格式**：
@@ -116,7 +152,7 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" \
 
 **示例模板文件**：
 
-1. **OpenAI 风格的接口** (`request_body_template_example.json`):
+1. **OpenAI 风格的接口** (`examples/request_body_template_example.json`):
 ```json
 {
   "model": "gpt-4",
@@ -132,7 +168,7 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" \
 }
 ```
 
-2. **默认格式** (`request_body_template_default.json`):
+2. **默认格式** (`examples/request_body_template_default.json`):
 ```json
 {
   "inputs": {
@@ -205,7 +241,7 @@ python3 sse_perfTestTool.py --host localhost --port 80 --api-key "app-xxx" --par
 - 每行一个查询文本
 - 空行会被自动跳过
 - 支持UTF-8编码的中文和英文
-- 示例文件：`queries_example.txt`
+- 示例文件：`examples/queries_example.txt`
 
 ### 使用 API Key 参数化文件
 
@@ -479,7 +515,7 @@ TPOT ≈ 1000 / Tokens/s
    - 每行一个查询文本，空行会被自动跳过
    - 当使用参数化文件时，每个线程会循环使用文件中的查询
    - 如果参数化文件不存在或读取失败，会使用默认查询或 `--query` 参数指定的查询
-   - 示例文件：`queries_example.txt`
+   - 示例文件：`examples/queries_example.txt`
 
 6. **API Key 参数化**:
    - API Key 文件格式：每行一个 API Key（支持 `app-xxx` 或 `Bearer app-xxx` 格式）
@@ -501,8 +537,8 @@ TPOT ≈ 1000 / Tokens/s
    - 使用 `--request-body-file` 参数可以指定自定义的请求体模板文件
    - 请求体模板支持变量替换：`{query}`, `{conversation_id}`, `{user}`, `{inputs.key}`, `{files}`
    - 如果不指定请求体模板，工具将使用默认的请求体格式（适用于 `/v1/chat-messages`）
-   - 项目提供了示例模板文件：`request_body_template_example.json`（OpenAI 风格）和 `request_body_template_default.json`（默认格式）
-   - 如果您的 API 响应格式不同（例如 JSON 字段名不同），可能需要修改 `tester.py` 中的响应解析逻辑（查找 `answer` 字段的部分）
+   - 项目提供了示例模板文件：`examples/request_body_template_example.json`（OpenAI 风格）和 `examples/request_body_template_default.json`（默认格式）
+   - 如果您的 API 响应格式不同（例如 JSON 字段名不同），可能需要修改 `src/sse_perf_tool/tester.py` 中的响应解析逻辑（查找 `answer` 字段的部分）
 
 
 **常见问题**：

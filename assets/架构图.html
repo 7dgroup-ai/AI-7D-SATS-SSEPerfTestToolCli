@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE性能测试工具架构图 - 7DGroup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            padding: 20px;
+            color: #1a1a1a;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1F6CFB 0%, #4A90E2 50%, #667eea 100%);
+            color: white;
+            padding: 50px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .header-content {
+            flex: 1;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            letter-spacing: -1px;
+        }
+
+        .header .subtitle {
+            font-size: 16px;
+            opacity: 0.95;
+            font-weight: 400;
+        }
+
+        .logo {
+            width: 220px;
+            height: 70px;
+            margin-left: 30px;
+            z-index: 1;
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.2));
+        }
+
+        .logo svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            padding: 20px 40px;
+            background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(31, 108, 251, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(31, 108, 251, 0.4);
+        }
+
+        .control-btn.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .architecture-content {
+            padding: 40px;
+            background: #ffffff;
+        }
+
+        .layer {
+            margin-bottom: 40px;
+            animation: slideIn 0.6s ease-out backwards;
+        }
+
+        .layer:nth-child(1) { animation-delay: 0.1s; }
+        .layer:nth-child(2) { animation-delay: 0.2s; }
+        .layer:nth-child(3) { animation-delay: 0.3s; }
+        .layer:nth-child(4) { animation-delay: 0.4s; }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .layer-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e2e8f0 100%);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .layer-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            transition: all 0.3s ease;
+        }
+
+        .layer-title:hover {
+            background: linear-gradient(135deg, #e8f4f8 0%, #d1e8e8 100%);
+            transform: translateX(5px);
+        }
+
+        .layer-title h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            flex: 1;
+        }
+
+        .layer-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            font-weight: 700;
+        }
+
+        .layer-arrow {
+            font-size: 24px;
+            color: #667eea;
+            transition: transform 0.3s ease;
+        }
+
+        .layer.expanded .layer-arrow {
+            transform: rotate(90deg);
+        }
+
+        .layer-content {
+            display: none;
+            padding: 20px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-top: 15px;
+        }
+
+        .layer.expanded .layer-content {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .component {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .component::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #1F6CFB 0%, #667eea 100%);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .component:hover {
+            transform: translateY(-5px);
+            border-color: #1F6CFB;
+            box-shadow: 0 12px 32px rgba(31, 108, 251, 0.2);
+        }
+
+        .component:hover::before {
+            transform: scaleX(1);
+        }
+
+        .component-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .component-title h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .component-type {
+            font-size: 11px;
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .component-desc {
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .component-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .feature-tag {
+            font-size: 11px;
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .data-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+
+        .flow-node {
+            background: white;
+            border-radius: 12px;
+            padding: 20px 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-align: center;
+            min-width: 180px;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .flow-node:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(31, 108, 251, 0.2);
+            z-index: 2;
+        }
+
+        .flow-node-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            margin: 0 auto 12px;
+            font-weight: 700;
+        }
+
+        .flow-node-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+
+        .flow-node-desc {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .flow-arrow {
+            color: #667eea;
+            font-size: 30px;
+            margin: 0 20px;
+            animation: arrowMove 1.5s ease-in-out infinite;
+        }
+
+        @keyframes arrowMove {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(5px); }
+        }
+
+        .metrics-panel {
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            border-radius: 16px;
+            padding: 30px;
+            color: white;
+            margin-top: 30px;
+        }
+
+        .metrics-panel h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255,255,255,0.2);
+        }
+
+        .metric-name {
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-formula {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            opacity: 0.95;
+            line-height: 1.5;
+        }
+
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 16px;
+            margin-top: 30px;
+        }
+
+        .tech-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            transition: all 0.3s ease;
+        }
+
+        .tech-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+        }
+
+        .tech-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .tooltip {
+            position: fixed;
+            background: #1a1a1a;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            max-width: 300px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .tooltip.active {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 32px;
+            }
+            .architecture-content {
+                padding: 20px;
+            }
+            .data-flow {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1>SSE性能测试工具架构图</h1>
+                <p class="subtitle">System Architecture Design · 7DGroup Performance Testing Platform</p>
+            </div>
+            <div class="logo">
+                <svg viewBox="0 0 220 70" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+                            <stop offset="50%" style="stop-color:#667eea;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <rect width="220" height="70" rx="12" fill="url(#logoGrad)"/>
+                    <text x="50%" y="50%" font-family="'Inter', 'Segoe UI', sans-serif" font-size="28" font-weight="800" fill="white" text-anchor="middle" dy=".35em" filter="url(#glow)">
+                        <tspan fill="#fff">7</tspan><tspan fill="#ffe100">D</tspan><tspan fill="#fff">Group</tspan>
+                    </text>
+                </svg>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn active" onclick="expandAll()">
+                <span>📂</span> 全部展开
+            </button>
+            <button class="control-btn" onclick="collapseAll()">
+                <span>📁</span> 全部折叠
+            </button>
+            <button class="control-btn" onclick="toggleDataFlow()">
+                <span>⚡</span> 数据流向视图
+            </button>
+        </div>
+
+        <div class="architecture-content">
+            <!-- 图例 -->
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: linear-gradient(135deg, #1F6CFB 0%, #667eea 100%);"></div>
+                    <span>核心组件</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);"></div>
+                    <span>工具类</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"></div>
+                    <span>数据提供器</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"></div>
+                    <span>报告生成</span>
+                </div>
+            </div>
+
+            <!-- 第一层：入口层 -->
+            <div class="layer expanded">
+                <div class="layer-title" onclick="toggleLayer(this)">
+                    <div class="layer-icon">1</div>
+                    <h3>用户入口层 (Entry Layer)</h3>
+                    <span class="layer-arrow">▶</span>
+                </div>
+                <div class="layer-content">
+                    <div class="component-grid">
+                        <div class="component" data-info="主入口文件，负责参数解析和测试流程控制">
+                            <div class="component-title">
+                                <h4>sse_perfTestTool.py</h4>
+                                <span class="component-type">主入口</span>
+                            </div>
+                            <div class="component-desc">
+                                负责解析命令行参数、初始化测试器、管理多线程执行、协调各模块工作，并生成最终报告。
+                            </div>
+                            <div class="component-features">
+                                <span class="feature-tag">参数解析</span>
+                                <span class="feature-tag">线程管理</span>
+                                <span class="feature-tag">流程控制</span>
+                                <span class="feature-tag">报告触发</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第二层：核心业务层 -->
+            <div class="layer expanded">
+                <div class="layer-title" onclick="toggleLayer(this)">
+                    <div class="layer-icon">2</div>
+                    <h3>核心业务层 (Core Business Layer)</h3>
+                    <span class="layer-arrow">▶</span>
+                </div>
+                <div class="layer-content">
+                    <div class="component-grid">
+                        <div class="component" data-info="执行SSE流式测试的核心类">
+                            <div class="component-title">
+                                <h4>SSETester</h4>
+                                <span class="component-type">核心类</span>
+                            </div>
+                            <div class="component-desc">
+                                封装HTTP请求和SSE流式响应处理，计算TTFT、TPOT、TTFB等关键性能指标。
+                            </div>
+                            <div class="component-features">
+                                <span class="feature-tag">SSE流式处理</span>
+                                <span class="feature-tag">指标计算</span>
+                                <span class="feature-tag">错误处理</span>
+                                <span class="feature-tag">重试机制</span>
+                            </div>
+                        </div>
+
+                        <div class="component" data-info="管理测试线程执行和实时统计">
+                            <div class="component-title">
+                                <h4>TestRunner</h4>
+                                <span class="component-type">执行器</span>
+                            </div>
+                            <div class="component-desc">
+                                负责多线程测试的执行控制，实时收集和汇总各线程的统计数据，支持持续时长控制。
+                            </div>
+                            <div class="component-features">
+                                <span class="feature-tag">多线程调度</span>
+                                <span class="feature-tag">实时统计</span>
+                                <span class="feature-tag">数据汇总</span>
+                                <span class="feature-tag">Ramp-up控制</span>
+                            </div>
+                        </div>
+
+                        <div class="component" data-info="生成HTML性能测试报告">
+                            <div class="component-title">
+                                <h4>ReportGenerator</h4>
+                                <span class="component-type">报告器</span>
+                            </div>
+                            <div class="component-desc">
+                                基于收集的测试数据生成美观的HTML报告，包含交互式图表、详细统计表和时间序列分析。
+                            </div>
+                            <div class="component-features">
+                                <span class="feature-tag">Chart.js图表</span>
+                                <span class="feature-tag">交互式可视化</span>
+                                <span class="feature-tag">百分位数统计</span>
+                                <span class="feature-tag">时间序列分析</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第三层：数据提供层 -->
+            <div class="layer expanded">
+                <div class="layer-title" onclick="toggleLayer(this)">
+                    <div class="layer-icon">3</div>
+                    <h3>数据提供层 (Data Provider Layer)</h3>
+                    <span class="layer-arrow">▶</span>
+                </div>
+                <div class="layer-content">
+                    <div class="component-grid">
+                        <div class="component" data-info="线程安全的查询参数提供器">
+                            <div class="component-title">
+                                <h4>QueryProvider</h4>
+                                <span class="component-type">提供器</span>
+                            </div>
+                            <div class="component-desc">
+                                从文件或默认配置中读取测试查询，支持多线程安全访问，循环使用查询列表。
+                            </div>
+                            <div class="component-features">
+                                <span class="feature-tag">文件读取</span>
+                                <span class="feature-tag">线程安全</span>
+                                <span class="feature-tag">循环轮询</span>
+                                <span class="feature-tag">UTF-8编码</span>
+                            </div>
+                        </div>
+
+                        <div class="component" data-info="线程安全的API Key提供器">
+                            <div class="component-title">
+                                <h4>ApiKeyProvider</h4>
+                                <span class="component-type">提供器</span>
+                            </div>
+                            <div class="component-desc">
+                                从文件读取API Key列表，支持多线程安全访问，循环使用不同的API Key进行负载均衡。
+                            </div>
+                            <div class="component-features">
+                                <span class="feature-tag">多Key管理</span>
+                                <span class="feature-tag">线程安全</span>
+                                <span class="feature-tag">循环轮询</span>
+                                <span class="feature-tag">错误容错</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第四层：指标计算 -->
+            <div class="layer expanded">
+                <div class="layer-title" onclick="toggleLayer(this)">
+                    <div class="layer-icon">4</div>
+                    <h3>性能指标计算 (Performance Metrics)</h3>
+                    <span class="layer-arrow">▶</span>
+                </div>
+                <div class="layer-content">
+                    <div class="metrics-panel">
+                        <h3>📊 核心性能指标</h3>
+                        <div class="metrics-grid">
+                            <div class="metric-card">
+                                <div class="metric-name">TTFT - 首Token时间</div>
+                                <div class="metric-formula">
+                                    first_token_time - request_start_time<br>
+                                    <span style="font-size: 11px; opacity: 0.8;">衡量首字生成延迟</span>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-name">TPOT - 每Token时间</div>
+                                <div class="metric-formula">
+                                    (last_token_time - first_token_time)<br>
+                                    / (token_count - 1)<br>
+                                    <span style="font-size: 11px; opacity: 0.8;">衡量生成速度</span>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-name">TTFB - 首字节时间</div>
+                                <div class="metric-formula">
+                                    first_byte_time - request_start_time<br>
+                                    <span style="font-size: 11px; opacity: 0.8;">衡量网络延迟</span>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-name">吞吐量 - Tokens/s</div>
+                                <div class="metric-formula">
+                                    token_count / streaming_duration * 1000<br>
+                                    <span style="font-size: 11px; opacity: 0.8;">衡量整体输出能力</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据流向图 -->
+            <div id="dataFlowSection" class="layer" style="display: none;">
+                <div class="layer-title" onclick="toggleLayer(this)">
+                    <div class="layer-icon">⚡</div>
+                    <h3>数据流向图 (Data Flow)</h3>
+                    <span class="layer-arrow">▶</span>
+                </div>
+                <div class="layer-content">
+                    <div class="data-flow">
+                        <div class="flow-node">
+                            <div class="flow-node-icon">👤</div>
+                            <div class="flow-node-title">用户输入</div>
+                            <div class="flow-node-desc">CLI参数/查询文件</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-node">
+                            <div class="flow-node-icon">🎯</div>
+                            <div class="flow-node-title">参数解析</div>
+                            <div class="flow-node-desc">argparse配置</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-node">
+                            <div class="flow-node-icon">🔄</div>
+                            <div class="flow-node-title">多线程调度</div>
+                            <div class="flow-node-desc">TestRunner</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-node">
+                            <div class="flow-node-icon">📡</div>
+                            <div class="flow-node-title">SSE流式测试</div>
+                            <div class="flow-node-desc">SSETester</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-node">
+                            <div class="flow-node-icon">📊</div>
+                            <div class="flow-node-title">指标计算</div>
+                            <div class="flow-node-desc">TTFT/TPOT/TTFB</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-node">
+                            <div class="flow-node-icon">📈</div>
+                            <div class="flow-node-title">生成报告</div>
+                            <div class="flow-node-desc">HTML + Chart.js</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 技术栈 -->
+            <div class="layer">
+                <div class="layer-title" onclick="toggleLayer(this)">
+                    <div class="layer-icon">🛠️</div>
+                    <h3>技术栈 (Technology Stack)</h3>
+                    <span class="layer-arrow">▶</span>
+                </div>
+                <div class="layer-content">
+                    <div class="tech-stack">
+                        <div class="tech-item">
+                            <div class="tech-icon">🐍</div>
+                            <span>Python 3.7+</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">📦</div>
+                            <span>Requests</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">🧵</div>
+                            <span>Threading</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">📊</div>
+                            <span>Chart.js</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">🎨</div>
+                            <span>HTML5/CSS3</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">📝</div>
+                            <span>argparse</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">🔄</div>
+                            <span>SSE流式</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">📐</div>
+                            <span>Type Hints</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // 展开/折叠层
+        function toggleLayer(element) {
+            const layer = element.parentElement;
+            layer.classList.toggle('expanded');
+        }
+
+        // 全部展开
+        function expandAll() {
+            document.querySelectorAll('.layer').forEach(layer => {
+                layer.classList.add('expanded');
+            });
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector('.control-btn:first-child').classList.add('active');
+        }
+
+        // 全部折叠
+        function collapseAll() {
+            document.querySelectorAll('.layer').forEach(layer => {
+                layer.classList.remove('expanded');
+            });
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.control-btn')[1].classList.add('active');
+        }
+
+        // 切换数据流向视图
+        function toggleDataFlow() {
+            const section = document.getElementById('dataFlowSection');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                section.classList.add('expanded');
+                section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                section.style.display = 'none';
+                section.classList.remove('expanded');
+            }
+        }
+
+        // 组件悬停提示
+        const tooltip = document.getElementById('tooltip');
+        document.querySelectorAll('.component').forEach(component => {
+            component.addEventListener('mouseenter', function(e) {
+                const info = this.getAttribute('data-info');
+                if (info) {
+                    tooltip.textContent = info;
+                    tooltip.classList.add('active');
+                }
+            });
+
+            component.addEventListener('mousemove', function(e) {
+                tooltip.style.left = e.pageX + 10 + 'px';
+                tooltip.style.top = e.pageY + 10 + 'px';
+            });
+
+            component.addEventListener('mouseleave', function() {
+                tooltip.classList.remove('active');
+            });
+        });
+
+        // 流程节点点击效果
+        document.querySelectorAll('.flow-node').forEach(node => {
+            node.addEventListener('click', function() {
+                this.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                }, 200);
+            });
+        });
+
+        // 页面加载动画
+        window.addEventListener('load', function() {
+            document.querySelectorAll('.layer').forEach((layer, index) => {
+                setTimeout(() => {
+                    layer.style.opacity = '1';
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>

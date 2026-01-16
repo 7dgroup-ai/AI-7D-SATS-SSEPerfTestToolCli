@@ -10,15 +10,19 @@ Author: 7DGroup
 """
 
 import sys
+import os
 import argparse
 import threading
 import time
 
+# 添加 src 目录到 Python 路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
 # 导入各个模块
-from providers import QueryProvider, ApiKeyProvider
-from tester import SSETester
-from test_runner import run_test_thread, aggregate_stats
-from report_generator import generate_html_report
+from sse_perf_tool.providers import QueryProvider, ApiKeyProvider
+from sse_perf_tool.tester import SSETester
+from sse_perf_tool.test_runner import run_test_thread, aggregate_stats
+from sse_perf_tool.report_generator import generate_html_report
 
 
 def main():
