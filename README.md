@@ -2,6 +2,8 @@
 
 **Author: 7DGroup**
 
+🇨🇳 中文版本 | 🇬🇧 [English Version](README_EN.md)
+
 这是一个专业级的 SSE（Server-Sent Events）流式输出性能测试与压测工具，由 7DGroup 团队开发，专为 AI 大模型流式响应场景设计。该工具采用 Python3 开发，提供了完整的性能测试解决方案，能够全面评估流式 AI 服务的响应速度、吞吐量、稳定性和并发处理能力。
 
 ## 架构图
